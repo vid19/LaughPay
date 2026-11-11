@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Results · LaughPay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/tailwind.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="wrap" style="max-width:860px">
+    <header class="flex items-center justify-between mb-8">
+      <a href="/" class="text-xl font-extrabold tracking-tight no-underline">Laugh<span style="color:var(--spot)">Pay</span></a>
+      <span id="status"></span>
+    </header>
+
+    <div class="label mb-1">Results log</div>
+    <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight" id="title">Loading…</h1>
+    <p class="muted mt-2" id="sub"></p>
+
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-3 my-6" id="totals"></section>
+
+    <section class="card">
+      <div class="scroll-x"><table class="list" id="results"></table></div>
+    </section>
+    <p class="muted text-xs mt-4">Every win is logged with when it happened, who judged it and the PayPal payout status. Winner names are shortened; emails are never shown.</p>
+  </main>
+
+  <script type="module">
+    import { $, api, badge, clock, esc, money, pathId, poll } from '/js/common.js';
+    const id = pathId();
+
+    poll(async () => {
+      const v = await api(`/api/challenges/${id}/results`);
+      document.title = `${v.title} results · LaughPay`;
+      $('#title').textContent = v.title;
+      $('#status').innerHTML = badge(v.status);
+      $('#sub').textContent = `Hosted by ${v.creatorName}${v.fundedAt ? ` · funded ${new Date(v.fundedAt).toLocaleString()}` : ''}${v.endedAt ? ` · ended ${new Date(v.endedAt).toLocaleString()}` : ''}`;
+      const b = v.balances;
+      $('#totals').innerHTML = [['Funded', b.funded], ['Paid to winners', b.paid], ['Refunded', b.refunded], ['Still held', b.available]]
+        .map(([k, val]) => `<div class="card" style="padding:14px"><div class="label">${k}</div><div class="mono text-xl font-bold mt-1">${money(val)}</div></div>`).join('');
+      $('#results').innerHTML = v.results.length
+        ? `<thead><tr><th>Time</th><th>Winner</th><th>Judged by</th><th>Reason</th><th>Amount</th><th>Payout</th><th>PayPal txn</th></tr></thead><tbody>${v.results.map((r) => `
+            <tr>
+              <td class="mono text-xs">${clock(r.at)}</td>
+              <td class="font-semibold">${esc(r.name)}</td>
+              <td>${r.source === 'manual' ? 'Creator' : esc(r.source)}</td>
+              <td class="muted">${esc(r.reason)}</td>
+              <td class="mono">${money(r.amount)}</td>
+              <td>${badge(r.status)}</td>
+              <td class="mono text-xs muted">${esc(r.transactionRef || '–')}</td>
+            </tr>`).join('')}</tbody>`
+        : '<tbody><tr><td class="muted">No winners yet.</td></tr></tbody>';
+    }, 4000);
+  </script>
+</body>
+</html>

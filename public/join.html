@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Join the challenge · LaughPay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/tailwind.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="wrap" style="max-width:560px">
+    <header class="flex items-center justify-between mb-8">
+      <div class="text-xl font-extrabold tracking-tight">Laugh<span style="color:var(--spot)">Pay</span></div>
+      <span id="status"></span>
+    </header>
+
+    <section class="card mb-5">
+      <div class="label mb-1" id="byline"></div>
+      <h1 class="text-3xl font-extrabold tracking-tight" id="title">Loading…</h1>
+      <p class="muted mt-2" id="rules"></p>
+      <div class="grid grid-cols-3 gap-3 mt-5 text-center">
+        <div class="rounded-xl p-3" style="background:var(--panel-2)"><div class="label">Prize</div><div class="mono text-xl font-bold" id="prize"></div></div>
+        <div class="rounded-xl p-3" style="background:var(--panel-2)"><div class="label">Prizes left</div><div class="mono text-xl font-bold" id="left"></div></div>
+        <div class="rounded-xl p-3" style="background:var(--panel-2)"><div class="label">In line</div><div class="mono text-xl font-bold" id="waiting"></div></div>
+      </div>
+    </section>
+
+    <section class="card mb-5" id="me"></section>
+
+    <section class="card">
+      <h2 class="text-lg font-bold mb-3">Winners</h2>
+      <ul id="winners" class="grid gap-2 text-sm"></ul>
+      <a class="muted text-sm underline mt-4 inline-block" id="resultsLink">See the full results log</a>
+    </section>
+
+    <p class="muted text-xs mt-6 text-center">Free to play. The creator funds every prize. Your email is never shown on stream.</p>
+  </main>
+
+  <script type="module" src="/js/join.js"></script>
+</body>
+</html>

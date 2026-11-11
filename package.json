@@ -1,0 +1,27 @@
+{
+  "name": "laughpay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Live creator challenges with a verified PayPal call queue and instant PayPal payouts to winners.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node scripts/seed.js",
+    "reset": "node scripts/reset.js",
+    "build:css": "tailwindcss -c tailwind.config.cjs -i src/tailwind.input.css -o public/tailwind.css --minify",
+    "check-payouts": "node scripts/check-payouts.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "tailwindcss": "^3.4.16"
+  }
+}

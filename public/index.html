@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LaughPay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/tailwind.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="flex items-center justify-between mb-12">
+      <div class="text-xl font-extrabold tracking-tight">Laugh<span style="color:var(--spot)">Pay</span></div>
+      <span class="badge b-pending" id="mode" hidden>Mock PayPal</span>
+    </header>
+
+    <section class="grid gap-10 md:grid-cols-[1.1fr_1fr] items-start">
+      <div>
+        <p class="onair mb-5">On air</p>
+        <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.02] tracking-tight">
+          Run live challenges.<br />Pay winners <span style="color:var(--spot)">before they hang up.</span>
+        </h1>
+        <p class="muted text-lg mt-6 max-w-xl">
+          Viewers join your call queue by signing in with PayPal, so every caller is verified and payable before they go live.
+          Tap <b class="text-white">Winner</b> and the prize lands in their PayPal account on stream. No emails read aloud, no fake winner DMs.
+        </p>
+        <ol class="mt-8 grid gap-3 text-sm muted">
+          <li><b class="text-white">1.</b> Fund the prize pool with PayPal Checkout</li>
+          <li><b class="text-white">2.</b> Viewers join the queue with Log in with PayPal</li>
+          <li><b class="text-white">3.</b> Pick the winner, PayPal Payouts sends the prize instantly</li>
+          <li><b class="text-white">4.</b> Unawarded money is refunded when you end the challenge</li>
+        </ol>
+      </div>
+
+      <form id="create" class="card grid gap-4" novalidate>
+        <div>
+          <h2 class="text-xl font-bold">Start a challenge</h2>
+          <p class="muted text-sm mt-1">Viewers always play free. You fund the prize.</p>
+        </div>
+        <label class="grid gap-1.5"><span class="label">Challenge</span>
+          <input name="title" required maxlength="80" value="Make me laugh, win cash" />
+        </label>
+        <label class="grid gap-1.5"><span class="label">Rules</span>
+          <textarea name="rules" rows="3" maxlength="500">Hop on the call and make me laugh. One minute per caller. Keep it clean.</textarea>
+        </label>
+        <label class="grid gap-1.5"><span class="label">Your creator name</span>
+          <input name="creatorName" required maxlength="40" placeholder="e.g. StreamerVid" />
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="grid gap-1.5"><span class="label">Prize per win (USD)</span>
+            <input name="prizePerWin" type="number" min="1" max="1000" step="1" value="25" class="mono" />
+          </label>
+          <label class="grid gap-1.5"><span class="label">Max winners</span>
+            <input name="maxWinners" type="number" min="1" max="10" step="1" value="2" class="mono" />
+          </label>
+        </div>
+        <div class="flex items-center justify-between text-sm">
+          <span class="muted">Prize pool to fund</span>
+          <span id="pool" class="mono text-lg font-bold">$50.00</span>
+        </div>
+        <button class="btn btn-spot btn-big" type="submit">Create challenge</button>
+      </form>
+    </section>
+  </main>
+
+  <script type="module">
+    import { $, api, money, toast } from '/js/common.js';
+
+    const form = $('#create');
+    const updatePool = () => {
+      const f = new FormData(form);
+      $('#pool').textContent = money((Number(f.get('prizePerWin')) || 0) * (Number(f.get('maxWinners')) || 0));
+    };
+    form.addEventListener('input', updatePool);
+    updatePool();
+
+    api('/api/config').then((c) => { $('#mode').hidden = !c.mock; }).catch(() => {});
+
+    const err = new URLSearchParams(location.search).get('error');
+    if (err) toast(err.replace(/_/g, ' '), 'err');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button');
+      btn.disabled = true;
+      try {
+        const f = Object.fromEntries(new FormData(form));
+        const res = await api('/api/challenges', {
+          method: 'POST',
+          body: { ...f, prizePerWin: Number(f.prizePerWin), maxWinners: Number(f.maxWinners) },
+        });
+        try { localStorage.setItem(`lp_creator_${res.id}`, res.creatorKey); } catch {}
+        location.href = `/creator/${res.id}#key=${res.creatorKey}`;
+      } catch (error) {
+        toast(error.message, 'err');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Creator dashboard · LaughPay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/tailwind.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <a href="/" class="text-xl font-extrabold tracking-tight no-underline">Laugh<span style="color:var(--spot)">Pay</span></a>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn" id="copyJoin">Copy join link</button>
+        <a class="btn" id="overlayLink" target="_blank" rel="noopener">Overlay</a>
+        <a class="btn" id="resultsLink" target="_blank" rel="noopener">Results</a>
+      </div>
+    </header>
+
+    <section id="keyGate" class="card max-w-md" hidden>
+      <h2 class="text-lg font-bold">Creator key needed</h2>
+      <p class="muted text-sm mt-1 mb-4">Paste the creator key for this challenge. It was saved in the browser that created it.</p>
+      <form id="keyForm" class="flex gap-2"><input id="keyInput" class="mono" placeholder="creator key" /><button class="btn btn-spot">Open</button></form>
+    </section>
+
+    <div id="app" hidden>
+      <div class="flex flex-wrap items-end justify-between gap-3 mb-6">
+        <div>
+          <div class="label mb-1" id="byline"></div>
+          <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight" id="title"></h1>
+        </div>
+        <div id="status"></div>
+      </div>
+
+      <div class="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
+        <div class="grid gap-5 content-start">
+          <section id="funding" class="card" hidden>
+            <div class="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h2 class="text-xl font-bold">Fund the prize pool</h2>
+                <p class="muted text-sm mt-1">Viewers can already join the queue. The challenge goes live once the pool is funded.</p>
+              </div>
+              <div class="text-right"><div class="label">Pool</div><div class="mono text-2xl font-bold" id="poolAmount"></div></div>
+            </div>
+            <div id="ppButtons" class="max-w-sm"></div>
+          </section>
+
+          <section class="card" id="stage">
+            <div class="flex items-center justify-between mb-4">
+              <span class="label">On the line</span>
+              <span id="liveTag"></span>
+            </div>
+            <div id="liveName" class="text-4xl md:text-5xl font-extrabold tracking-tight min-h-[56px]"></div>
+            <div id="liveMeta" class="muted text-sm mt-1"></div>
+            <div class="grid sm:grid-cols-[1.4fr_1fr] gap-3 mt-6">
+              <button class="btn btn-spot btn-big" id="winnerBtn">Winner</button>
+              <button class="btn btn-big" id="nextBtn">Next caller</button>
+            </div>
+            <p class="muted text-xs mt-3" id="stageHint"></p>
+          </section>
+
+          <section class="card">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-lg font-bold">Payouts</h2>
+              <span class="label">PayPal Payouts</span>
+            </div>
+            <div class="scroll-x"><table class="list" id="payouts"></table></div>
+          </section>
+        </div>
+
+        <div class="grid gap-5 content-start">
+          <section class="card">
+            <h2 class="text-lg font-bold mb-3">Prize pool</h2>
+            <dl class="grid grid-cols-2 gap-y-2 text-sm" id="balances"></dl>
+            <div class="mt-4 pt-4 border-t" style="border-color:var(--line)">
+              <div class="flex justify-between text-sm"><span class="muted">Prize per win</span><span class="mono" id="perWin"></span></div>
+              <div class="flex justify-between text-sm mt-1"><span class="muted">Winners</span><span class="mono" id="winCount"></span></div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-lg font-bold">Queue</h2>
+              <span class="mono muted text-sm" id="queueCount"></span>
+            </div>
+            <ol id="queue" class="grid gap-2 text-sm"></ol>
+          </section>
+
+          <section class="card">
+            <h2 class="text-lg font-bold">End challenge</h2>
+            <p class="muted text-sm mt-1 mb-4" id="endHint">Closes the queue and refunds any prize money that was not awarded.</p>
+            <button class="btn btn-danger w-full" id="endBtn">End and refund leftover</button>
+            <p class="text-sm mt-3" id="refundInfo"></p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/js/creator.js"></script>
+</body>
+</html>
