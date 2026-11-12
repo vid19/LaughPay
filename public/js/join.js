@@ -1,4 +1,5 @@
 import { $, api, badge, esc, money, pathId, poll, toast } from '/js/common.js';
+import { CallGuest } from '/js/call.js';
 
 const id = pathId();
 let view = null;
@@ -19,6 +20,7 @@ function meCard(v) {
       <div class="label mb-2" style="color:var(--money)">You won</div>
       <div class="text-4xl font-extrabold tracking-tight">${money(me.win.amount)}</div>
       <p class="mt-2">${paid ? 'Paid to your PayPal account.' : 'On its way to your PayPal account…'}</p>
+      ${me.win.ai?.ruling ? `<p class="muted mt-2">AI referee: ${esc(me.win.ai.ruling)}</p>` : ''}
       <div class="mt-3">${badge(me.win.status)}</div>`;
   }
   if (ended) {
@@ -32,9 +34,9 @@ function meCard(v) {
   }
   if (me.entryStatus === 'live') {
     return `
-      <div class="onair mb-3">You're live</div>
+      <div class="onair mb-3">It's your turn</div>
       <h2 class="text-3xl font-extrabold tracking-tight">You're on, ${esc(me.name)}!</h2>
-      <p class="muted mt-2">The creator can see you now. ${esc(v.rules || 'Give it your best shot.')}</p>`;
+      <p class="muted mt-2">${esc(v.rules || 'Give it your best shot.')}</p>`;
   }
   if (me.entryStatus === 'waiting') {
     const pos = me.ahead === 0 ? "You're next" : `${me.ahead} ahead of you`;
@@ -62,6 +64,7 @@ function render() {
   $('#waiting').textContent = v.queue.waitingCount;
   $('#resultsLink').href = `/c/${id}/results`;
   $('#me').innerHTML = meCard(v);
+  syncCall(v);
   $('#winners').innerHTML = v.winners.length
     ? v.winners.map((w) => `
         <li class="flex items-center justify-between rounded-xl px-3 py-2" style="background:var(--panel-2)">
@@ -96,3 +99,46 @@ poll(async () => {
     throw err;
   }
 }, 2000);
+
+// ---------- built-in video call ----------
+const CALL_TEXT = {
+  starting: 'Starting your camera…',
+  waiting: 'Waiting for the creator to connect…',
+  connecting: 'Connecting…',
+  connected: 'Live with the creator',
+  failed: "Couldn't connect. Refresh this page to try again.",
+  ended: 'Call ended',
+};
+const guest = new CallGuest({
+  cid: id,
+  localVideo: $('#selfVideo'),
+  remoteVideo: $('#creatorVideo'),
+  onState(state) {
+    $('#callStatus').textContent = CALL_TEXT[state] || '';
+    $('#callWait').hidden = state === 'connected';
+    $('#callWait').textContent = CALL_TEXT[state] || '';
+    if (state === 'ended') $('#callSection').hidden = true;
+  },
+});
+
+function syncCall(v) {
+  const live = v.me?.entryStatus === 'live' && !['ended', 'settled'].includes(v.status);
+  if (!live) {
+    if (guest.entryId) guest.leave();
+    $('#callSection').hidden = true;
+    return;
+  }
+  $('#callSection').hidden = false;
+  $('#joinCallBtn').hidden = guest.entryId === v.me.entryId;
+}
+
+$('#joinCallBtn').onclick = async () => {
+  if (!view?.me?.entryId) return;
+  $('#joinCallBtn').hidden = true;
+  try {
+    await guest.join(view.me.entryId);
+  } catch (err) {
+    $('#joinCallBtn').hidden = false;
+    toast(err?.name === 'NotAllowedError' ? 'Allow camera and microphone to join the call' : `Could not start camera: ${err.message}`, 'err');
+  }
+};

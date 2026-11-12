@@ -8,6 +8,12 @@ import { paypal } from '../paypal/index.js';
 import {
   creatorView, currentEntry, getChallenge, hashKey, joinQueue, publicView, queueFor, resultsView,
 } from '../services/challenges.js';
+import fs from 'node:fs';
+import { confirmLaugh, dismissLaugh, expireLaughsFor, reportLaugh, snapshotPath } from '../services/laughs.js';
+import { broadcast, subscribe } from '../services/live.js';
+import {
+  checkCreatorToken, issueCreatorToken, subscribeCaller, subscribeCreator, toCaller, toCreator,
+} from '../services/signal.js';
 import { endChallenge, payWinner, syncPayout } from '../services/payouts.js';
 import { getViewer } from '../services/viewers.js';
 
@@ -37,6 +43,7 @@ r.get('/config', (_req, res) => {
     mock: config.paypal.mock,
     clientId: config.paypal.mock ? null : config.paypal.clientId,
     currency: config.currency,
+    iceServers: config.iceServers,
   });
 });
 
@@ -116,14 +123,22 @@ r.post('/challenges/:id/next', (req, res) => {
   if (c.status !== 'live') throw new HttpError(409, 'Challenge is not live');
   const now = new Date().toISOString();
   const current = currentEntry(c);
-  if (current) db.update('queue', current.id, { status: 'done', endedAt: now });
+  if (current) {
+    db.update('queue', current.id, { status: 'done', endedAt: now });
+    expireLaughsFor(current.id);
+  }
   const next = queueFor(c.id).find((q) => q.status === 'waiting');
   if (next) db.update('queue', next.id, { status: 'live', startedAt: now });
+  // Tell both callers right away instead of waiting for their next poll.
+  if (current) toCaller(c.id, current.viewerId, { type: 'hangup', entryId: current.id });
+  if (next) toCaller(c.id, next.viewerId, { type: 'your-turn', entryId: next.id });
   res.json(creatorView(getChallenge(c.id)));
 });
 
 r.post('/challenges/:id/winner', async (req, res) => {
   const c = requireCreator(req);
+  const open = currentEntry(c);
+  if (open) expireLaughsFor(open.id);
   const reason = req.body?.reason ? String(req.body.reason).slice(0, 200) : undefined;
   await payWinner(c.id, { reason, source: 'manual' });
   res.json(creatorView(getChallenge(c.id)));
@@ -141,6 +156,87 @@ r.post('/challenges/:id/end', async (req, res) => {
   const c = requireCreator(req);
   await endChallenge(c.id);
   res.json(creatorView(getChallenge(c.id)));
+});
+
+// ---------- Built-in 1:1 video call (WebRTC signaling) ----------
+
+r.post('/challenges/:id/call/token', (req, res) => {
+  const c = requireCreator(req);
+  res.json({ token: issueCreatorToken(c.id) });
+});
+
+// Creator listens with ?token=…; the caller listens with their PayPal session cookie.
+r.get('/challenges/:id/call/events', (req, res) => {
+  const c = getChallenge(req.params.id);
+  if (req.query.token) {
+    if (!checkCreatorToken(c.id, req.query.token)) throw new HttpError(401, 'Bad call token');
+    return subscribeCreator(c.id, req, res);
+  }
+  const viewer = requireViewer(req);
+  subscribeCaller(c.id, viewer.id, req, res);
+});
+
+const CALL_TYPES = new Set(['ready', 'hello', 'offer', 'answer', 'ice', 'hangup']);
+
+r.post('/challenges/:id/call/signal', (req, res) => {
+  const c = getChallenge(req.params.id);
+  const { type, data = null, entryId } = req.body || {};
+  if (!CALL_TYPES.has(type)) throw new HttpError(400, 'Unknown signal type');
+  const live = currentEntry(c);
+  if (!live || live.id !== entryId) throw new HttpError(409, 'That caller is not live');
+
+  if (req.get('x-creator-key')) {
+    requireCreator(req);
+    toCaller(c.id, live.viewerId, { type, data, entryId });
+  } else {
+    const viewer = requireViewer(req);
+    if (viewer.id !== live.viewerId) throw new HttpError(403, 'Only the live caller can join the call');
+    toCreator(c.id, { type, data, entryId });
+  }
+  res.status(204).end();
+});
+
+// ---------- AI referee ----------
+
+// The creator's browser streams its live laugh meter here; the overlay receives it over SSE.
+r.post('/challenges/:id/meter', (req, res) => {
+  const c = requireCreator(req);
+  const b = req.body || {};
+  const clamp = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+  broadcast(c.id, { type: 'meter', score: clamp(b.score), threshold: clamp(b.threshold), armed: Boolean(b.armed), at: Date.now() });
+  res.status(204).end();
+});
+
+r.get('/challenges/:id/live', (req, res) => {
+  const c = getChallenge(req.params.id);
+  subscribe(c.id, req, res);
+});
+
+r.post('/challenges/:id/laughs', async (req, res) => {
+  const c = requireCreator(req);
+  await reportLaugh(c.id, req.body || {});
+  res.status(202).json(creatorView(getChallenge(c.id)));
+});
+
+r.post('/challenges/:id/laughs/:laughId/confirm', async (req, res) => {
+  const c = requireCreator(req);
+  await confirmLaugh(c.id, req.params.laughId);
+  res.json(creatorView(getChallenge(c.id)));
+});
+
+r.post('/challenges/:id/laughs/:laughId/dismiss', (req, res) => {
+  const c = requireCreator(req);
+  dismissLaugh(c.id, req.params.laughId);
+  res.json(creatorView(getChallenge(c.id)));
+});
+
+// Snapshots become public only once they are evidence for a paid win.
+r.get('/laughs/:laughId/snapshot.jpg', (req, res) => {
+  const e = db.byId('laughEvents', req.params.laughId);
+  if (!e || e.status !== 'paid' || !e.hasSnapshot || !fs.existsSync(snapshotPath(e.id))) {
+    throw new HttpError(404, 'Snapshot not found');
+  }
+  res.set('Cache-Control', 'public, max-age=86400').type('jpeg').sendFile(snapshotPath(e.id));
 });
 
 // ---------- Viewers ----------

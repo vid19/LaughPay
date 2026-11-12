@@ -30,6 +30,20 @@
 
     <section class="card mb-5" id="me"></section>
 
+    <section class="card mb-5" id="callSection" hidden>
+      <div class="flex items-center justify-between mb-3">
+        <span class="onair">You're on the call</span>
+        <span class="muted text-sm" id="callStatus"></span>
+      </div>
+      <div class="callbox">
+        <video id="creatorVideo" playsinline autoplay></video>
+        <div class="callstate" id="callWait">Connecting you to the creator…</div>
+        <video id="selfVideo" class="pip" playsinline autoplay muted></video>
+      </div>
+      <button class="btn btn-spot btn-big w-full mt-4" id="joinCallBtn">Turn on camera and join the call</button>
+      <p class="muted text-xs mt-2">Your camera and mic go straight to the creator's browser. LaughPay never records the call.</p>
+    </section>
+
     <section class="card">
       <h2 class="text-lg font-bold mb-3">Winners</h2>
       <ul id="winners" class="grid gap-2 text-sm"></ul>

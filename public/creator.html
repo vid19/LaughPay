@@ -49,6 +49,43 @@
             <div id="ppButtons" class="max-w-sm"></div>
           </section>
 
+          <section class="card" id="referee">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h2 class="text-lg font-bold">AI referee</h2>
+                <p class="muted text-xs mt-0.5">Watches your face and listens for laughter on this computer. Video never leaves your browser.</p>
+              </div>
+              <span id="refStatus" class="badge b-settled">Off</span>
+            </div>
+            <div class="grid gap-4 items-start" id="refGrid">
+              <div class="refcam" id="refCam" hidden>
+                <video id="refVideo" playsinline muted></video>
+                <span class="refcam-tag" id="refFaceTag">No face</span>
+              </div>
+              <div class="grid gap-3 content-start">
+                <div>
+                  <div class="flex justify-between text-xs mb-1"><span class="label">Laugh meter</span><span class="mono muted" id="refNums">–</span></div>
+                  <div class="meter"><div class="meter-fill" id="refFill"></div><div class="meter-mark" id="refMark"></div></div>
+                </div>
+                <p class="text-sm" id="refHint">Start the referee when you're ready to go live. You'll keep a straight face for 5 seconds so it learns your neutral look.</p>
+                <div class="flex flex-wrap gap-2">
+                  <button class="btn btn-spot" id="refStart">Start AI referee</button>
+                  <button class="btn" id="refRecal" hidden>Recalibrate</button>
+                  <button class="btn" id="refSim" title="Sends a fake laugh through the same pipeline, for testing without a camera">Simulate laugh</button>
+                </div>
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                  <label class="flex items-center gap-2"><input type="radio" name="refMode" value="confirm" checked style="width:auto" /> Confirm each win</label>
+                  <label class="flex items-center gap-2"><input type="radio" name="refMode" value="auto" style="width:auto" /> Auto-pay clear laughs</label>
+                  <label class="flex items-center gap-2"><input type="checkbox" id="refMic" checked style="width:auto" /> Use mic</label>
+                </div>
+                <label class="grid gap-1 text-sm">
+                  <span class="flex justify-between"><span class="muted">Trigger threshold</span><span class="mono" id="refSensVal">0.55</span></span>
+                  <input type="range" id="refSens" min="0.35" max="0.8" step="0.05" value="0.55" style="padding:0" />
+                </label>
+              </div>
+            </div>
+          </section>
+
           <section class="card" id="stage">
             <div class="flex items-center justify-between mb-4">
               <span class="label">On the line</span>
@@ -56,11 +93,16 @@
             </div>
             <div id="liveName" class="text-4xl md:text-5xl font-extrabold tracking-tight min-h-[56px]"></div>
             <div id="liveMeta" class="muted text-sm mt-1"></div>
+            <div class="callbox mt-4" id="callBox" hidden>
+              <video id="callVideo" playsinline autoplay></video>
+              <div class="callstate" id="callState">Waiting for the caller to turn on their camera…</div>
+            </div>
             <div class="grid sm:grid-cols-[1.4fr_1fr] gap-3 mt-6">
               <button class="btn btn-spot btn-big" id="winnerBtn">Winner</button>
               <button class="btn btn-big" id="nextBtn">Next caller</button>
             </div>
             <p class="muted text-xs mt-3" id="stageHint"></p>
+            <div id="laughBox" class="laughbox" hidden></div>
           </section>
 
           <section class="card">

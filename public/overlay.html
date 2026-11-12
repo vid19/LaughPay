@@ -31,6 +31,18 @@
     .banner .amt { font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 700; margin-top: 4px; }
     .banner .st { display: inline-block; margin-top: 12px; padding: 6px 14px; border-radius: 999px; background: #1a1505; color: var(--spot); font-weight: 700; letter-spacing: .06em; }
     .banner .st.paid { color: var(--money); }
+    .banner .why { font-size: 17px; font-weight: 600; margin-top: 10px; max-width: 520px; margin-left: auto; margin-right: auto; }
+    .lmeter { position: fixed; right: 32px; bottom: 32px; width: 360px; padding: 12px 16px; border-radius: 16px;
+      background: rgba(13, 12, 18, .82); border: 1px solid rgba(255,255,255,.08); opacity: 0; transition: opacity .3s; }
+    .lmeter.on { opacity: 1; }
+    .lmeter .bar { position: relative; height: 18px; border-radius: 999px; background: #2a2638; overflow: hidden; margin-top: 8px; }
+    .lmeter .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, #6b5a1d, var(--spot)); transition: width .25s ease-out; }
+    .lmeter .fill.hot { background: linear-gradient(90deg, var(--spot), #ff8a3d); }
+    .lmeter .mark { position: absolute; top: 0; bottom: 0; width: 3px; background: #fff; left: 55%; }
+    .flash { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(.8); opacity: 0; pointer-events: none;
+      font-size: 64px; font-weight: 800; letter-spacing: -.01em; color: var(--spot); text-shadow: 0 6px 30px rgba(0,0,0,.6);
+      transition: all .25s cubic-bezier(.2,.9,.3,1.3); }
+    .flash.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   </style>
 </head>
 <body>
@@ -49,11 +61,21 @@
     </div>
   </div>
 
+  <div class="lmeter" id="lmeter">
+    <div style="display:flex; justify-content:space-between; align-items:center">
+      <span class="k" style="font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)">AI referee · laugh meter</span>
+      <span class="mono" id="lscore" style="font-weight:700">0%</span>
+    </div>
+    <div class="bar"><div class="fill" id="lfill"></div><div class="mark" id="lmark"></div></div>
+  </div>
+  <div class="flash" id="flash" role="status" aria-live="polite">LAUGH DETECTED</div>
+
   <div class="banner" id="banner" role="status" aria-live="polite">
     <div style="font-weight:700; letter-spacing:.12em; text-transform:uppercase; font-size:14px">Winner</div>
     <div class="who" id="bWho"></div>
     <div class="amt" id="bAmt"></div>
     <div class="st" id="bSt"></div>
+    <div class="why" id="bWhy"></div>
   </div>
 
   <script type="module">
@@ -83,6 +105,7 @@
         const paid = latest.status === 'succeeded';
         $('#bSt').textContent = paid ? 'PAID VIA PAYPAL ✓' : 'SENDING VIA PAYPAL…';
         $('#bSt').classList.toggle('paid', paid);
+        $('#bWhy').textContent = latest.ai?.ruling ? `AI referee: ${latest.ai.ruling}` : '';
         if (shownId !== latest.id) {
           shownId = latest.id;
           $('#banner').classList.add('show');
@@ -91,6 +114,28 @@
         }
       }
     }, 1500);
+
+    // Live laugh meter and "laugh detected" moments arrive over server-sent events.
+    let meterTimer, flashTimer;
+    const es = new EventSource(`/api/challenges/${id}/live`);
+    es.onmessage = (msg) => {
+      const d = JSON.parse(msg.data);
+      if (d.type === 'meter') {
+        $('#lmeter').classList.toggle('on', d.armed);
+        $('#lfill').style.width = `${Math.round(d.score * 100)}%`;
+        $('#lfill').classList.toggle('hot', d.score >= d.threshold);
+        $('#lmark').style.left = `${d.threshold * 100}%`;
+        $('#lscore').textContent = `${Math.round(d.score * 100)}%`;
+        clearTimeout(meterTimer);
+        meterTimer = setTimeout(() => $('#lmeter').classList.remove('on'), 4000);
+      }
+      if (d.type === 'laugh') {
+        $('#flash').textContent = `LAUGH DETECTED · ${d.name}`;
+        $('#flash').classList.add('show');
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => $('#flash').classList.remove('show'), 2500);
+      }
+    };
   </script>
 </body>
 </html>

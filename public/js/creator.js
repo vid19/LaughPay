@@ -1,4 +1,6 @@
 import { $, api, badge, clock, copy, esc, money, pathId, poll, timeAgo, toast } from '/js/common.js';
+import { LaughDetector } from '/js/referee.js';
+import { CallHost } from '/js/call.js';
 
 const id = pathId();
 const storeKey = `lp_creator_${id}`;
@@ -110,6 +112,9 @@ function render() {
   $('#liveTag').innerHTML = live ? '<span class="onair">Live</span>' : '';
   $('#liveName').innerHTML = live ? esc(live.name) : '<span class="muted">Nobody on the line</span>';
   $('#liveMeta').textContent = live ? `On since ${clock(live.since)}` : `${v.queue.waitingCount} waiting in the queue`;
+  $('#callBox').hidden = !live;
+  if (callHost) callHost.setLiveEntry(v.liveEntry?.id || null);
+  if (live) callLabel(live.name);
   const alreadyWon = live && v.liveAlreadyWon;
   const canWin = v.status === 'live' && live && !alreadyWon && v.prizesLeft > 0 && !busy;
   $('#winnerBtn').textContent = `Winner · Pay ${money(v.prizePerWin)}`;
@@ -154,6 +159,8 @@ function render() {
         </tr>`).join('')}</tbody>`
     : '<tbody><tr><td class="muted">No winners yet.</td></tr></tbody>';
 
+  renderLaugh(v);
+
   // end
   $('#endBtn').disabled = busy || v.status === 'settled';
   $('#endBtn').textContent = v.status === 'ended' ? 'Retry refund' : endArmed ? `Click again to end and refund ${money(b.available)}` : 'End and refund leftover';
@@ -167,7 +174,10 @@ let endArmed = false;
 let endTimer;
 
 $('#winnerBtn').onclick = () => act(() => call('/winner', 'POST', {}), 'Payout sent through PayPal');
-$('#nextBtn').onclick = () => act(() => call('/next'));
+$('#nextBtn').onclick = () => {
+  callHost?.ensureMedia().catch((err) => toast(`Camera for the call: ${err.message}`, 'err'));
+  act(() => call('/next'));
+};
 $('#copyJoin').onclick = () => view && copy(view.links.join);
 $('#payouts').addEventListener('click', (e) => {
   const pid = e.target.closest('[data-refresh]')?.dataset.refresh;
@@ -196,6 +206,7 @@ function start() {
   stopPolling = poll(async () => {
     try {
       view = await call('/creator', 'GET');
+      startCall();
       $('#keyGate').hidden = true;
       $('#app').hidden = false;
       if (!busy) render();
@@ -209,3 +220,190 @@ function start() {
 }
 
 start();
+
+// ---------- AI referee ----------
+const snapshots = new Map(); // laugh event id -> local snapshot (the creator's own copy)
+const STATUS_UI = {
+  off: ['Off', 'b-settled'],
+  loading: ['Loading', 'b-pending'],
+  calibrating: ['Calibrating', 'b-pending'],
+  armed: ['Armed', 'b-live'],
+  error: ['Error', 'b-failed'],
+};
+const VERDICT_UI = { laugh: ['Laugh', 'b-live'], unclear: ['Unclear', 'b-pending'], no_laugh: ['No laugh', 'b-failed'] };
+const refMode = () => document.querySelector('input[name="refMode"]:checked')?.value || 'confirm';
+let reporting = false;
+let lastMeterPost = 0;
+
+const detector = new LaughDetector({
+  video: $('#refVideo'),
+  onStatus(state, detail) {
+    const [label, cls] = STATUS_UI[state] || STATUS_UI.off;
+    $('#refStatus').className = `badge ${cls}`;
+    $('#refStatus').textContent = label;
+    if (detail) $('#refHint').textContent = detail;
+    const on = state !== 'off' && state !== 'error';
+    $('#refStart').textContent = on ? 'Stop referee' : 'Start AI referee';
+    $('#refStart').classList.toggle('btn-spot', !on);
+    $('#refRecal').hidden = !['armed', 'calibrating'].includes(state);
+    $('#refCam').hidden = !on;
+    $('#refGrid').classList.toggle('cam-on', on);
+  },
+  onTick({ score, face, audio, audioRaw, micLevel, audioOk, faceFound, threshold, simulating }) {
+    $('#refFill').style.width = `${Math.round(score * 100)}%`;
+    $('#refFill').classList.toggle('hot', score >= threshold);
+    $('#refMark').style.left = `${threshold * 100}%`;
+    $('#refNums').textContent = simulating
+      ? 'simulated'
+      : detector.state === 'off'
+        ? '–'
+        : !audioOk && $('#refMic').checked
+          ? `face ${face.toFixed(2)} · mic not running`
+          : `face ${face.toFixed(2)} · laugh ${audioRaw.toFixed(2)} · mic ${Math.round(micLevel * 100)}%`;
+    $('#refFaceTag').textContent = faceFound ? 'Face found' : 'No face';
+    $('#refFaceTag').style.color = faceFound ? 'var(--money)' : 'var(--warn)';
+
+    const now = performance.now();
+    const armed = (detector.state === 'armed' || simulating) && view?.status === 'live' && Boolean(view?.liveEntry);
+    if (key && view && now - lastMeterPost > 300 && (armed || score > 0.02)) {
+      lastMeterPost = now;
+      call('/meter', 'POST', { score, threshold, armed }).catch(() => {});
+    }
+  },
+  async onLaugh(m) {
+    const v = view;
+    const why =
+      !v || v.status !== 'live' ? 'the challenge is not live'
+      : !v.liveEntry ? 'nobody is on the line'
+      : v.liveAlreadyWon ? 'this caller already won'
+      : v.prizesLeft <= 0 ? 'no prizes are left'
+      : v.laugh && ['reviewing', 'pending'].includes(v.laugh.status) ? 'a laugh is already waiting for review'
+      : !m.simulated && Date.now() - new Date(v.liveEntry.startedAt).getTime() < 2000 ? 'the caller only just came on'
+      : null;
+    if (why) {
+      if (m.simulated) toast(`Laugh ignored: ${why}`, 'err');
+      return;
+    }
+    if (reporting) return;
+    reporting = true;
+    try {
+      const next = await call('/laughs', 'POST', { ...m, queueEntryId: v.liveEntry.id, mode: refMode() });
+      if (next.laugh) snapshots.set(next.laugh.id, m.snapshot);
+      view = next;
+      render();
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      reporting = false;
+    }
+  },
+});
+
+function renderLaugh(v) {
+  const box = $('#laughBox');
+  const l = v.laugh;
+  if (!l || l.status === 'dismissed') {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const snap = snapshots.get(l.id);
+  const [vLabel, vCls] = VERDICT_UI[l.verdict] || [];
+  const meta = [
+    `peak ${l.peak.toFixed(2)}`,
+    `held ${(l.durationMs / 1000).toFixed(1)}s`,
+    `face ${l.face.toFixed(2)}`,
+    `audio ${l.audio.toFixed(2)}`,
+  ].join(' · ');
+  let body;
+  if (l.status === 'reviewing') {
+    body = '<p class="mt-2">Claude is reviewing the moment…</p>';
+  } else if (l.status === 'paid') {
+    body = `<p class="mt-2">${esc(l.ruling || '')}</p><p class="mt-2 font-semibold" style="color:var(--money)">Paid via PayPal ✓ ${l.mode === 'auto' ? '(auto-paid)' : ''}</p>`;
+  } else {
+    body = `
+      <p class="mt-2 text-lg font-semibold">${esc(l.ruling || 'Laugh detected')}</p>
+      ${l.flags.length ? `<p class="text-xs mt-1" style="color:var(--warn)">Flags: ${l.flags.map((f) => esc(f.replace(/_/g, ' '))).join(', ')}</p>` : ''}
+      ${l.autoError ? `<p class="text-xs mt-1" style="color:var(--bad)">Auto-pay stopped: ${esc(l.autoError)}</p>` : ''}
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button class="btn btn-spot" data-laugh="confirm" data-id="${esc(l.id)}">Confirm and pay ${money(v.prizePerWin)}</button>
+        <button class="btn" data-laugh="dismiss" data-id="${esc(l.id)}">Not a laugh</button>
+      </div>`;
+  }
+  box.innerHTML = `
+    ${snap ? `<img src="${snap}" alt="Snapshot of the laugh" />` : '<div class="noimg"></div>'}
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-bold">Laugh detected · ${esc(l.callerName)}</span>
+        ${vLabel ? `<span class="badge ${vCls}">${vLabel}</span>` : ''}
+        ${l.simulated ? '<span class="badge b-pending">Simulated</span>' : ''}
+      </div>
+      <div class="muted text-xs mt-1 mono">${meta}${l.judgedBy ? ` · ${esc(l.judgedBy)}` : ''}</div>
+      ${body}
+    </div>`;
+}
+
+$('#laughBox').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-laugh]');
+  if (!btn) return;
+  const { laugh: action, id: lid } = btn.dataset;
+  act(() => call(`/laughs/${lid}/${action}`), action === 'confirm' ? 'Payout sent through PayPal' : 'Dismissed');
+});
+
+$('#refStart').onclick = async () => {
+  if (!['off', 'error'].includes(detector.state)) {
+    detector.stop();
+    $('#refHint').textContent = 'Referee stopped.';
+    return;
+  }
+  const head = await fetch('/models/face_landmarker.task', { method: 'HEAD' }).catch(() => null);
+  if (!head?.ok) {
+    detector.onStatus('error', 'The AI models are missing. Run "npm run setup:models" in the project folder, then reload.');
+    return;
+  }
+  try {
+    await detector.start({ useMic: $('#refMic').checked });
+  } catch (err) {
+    detector.stop();
+    const msg = err?.name === 'NotAllowedError' ? 'Camera or microphone permission was denied. Allow it in the browser and try again.' : `Could not start: ${err?.message || err}`;
+    detector.onStatus('error', msg);
+  }
+};
+$('#refRecal').onclick = () => detector.calibrate();
+$('#refSim').onclick = () => {
+  if (!view?.liveEntry) return toast('Bring a caller on first, then simulate a laugh', 'err');
+  detector.simulate();
+};
+$('#refSens').oninput = (e) => {
+  detector.threshold = Number(e.target.value);
+  $('#refSensVal').textContent = Number(e.target.value).toFixed(2);
+};
+
+// ---------- built-in video call ----------
+let callHost = null;
+let callState = 'idle';
+
+function startCall() {
+  if (callHost) return;
+  callHost = new CallHost({
+    cid: id,
+    creatorKey: key,
+    remoteVideo: $('#callVideo'),
+    onState(state) {
+      callState = state;
+      callLabel(view?.queue.live?.name || 'the caller');
+    },
+  });
+  callHost.connect().catch((err) => toast(`Call setup failed: ${err.message}`, 'err'));
+}
+
+function callLabel(name) {
+  const text = {
+    waiting: `Waiting for ${name} to turn on their camera…`,
+    connecting: `Connecting to ${name}…`,
+    reconnecting: 'Connection dropped. Reconnecting…',
+    failed: `Couldn't connect to ${name}. Ask them to refresh their page.`,
+  }[callState];
+  $('#callState').hidden = !text;
+  if (text) $('#callState').textContent = text;
+}
