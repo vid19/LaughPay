@@ -4,7 +4,8 @@ const port = Number(process.env.PORT || 3000);
 
 export const config = {
   port,
-  baseUrl: (process.env.BASE_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
+  // Render sets RENDER_EXTERNAL_URL automatically, so BASE_URL is only needed locally (ngrok).
+  baseUrl: (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
   sessionSecret: process.env.SESSION_SECRET || 'laughpay-dev-secret-change-me',
   currency: 'USD',
   dataFile: process.env.DATA_FILE || 'data/db.json',
