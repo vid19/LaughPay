@@ -50,7 +50,7 @@ Money safety rules enforced on the server:
 
 ## Deploy to Render
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/vid19/laughpay)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/vid19/LaughPay)
 
 The repo includes a `render.yaml` Blueprint. Render installs dependencies (which also downloads the two on-device models), starts the server and checks `/healthz`. You are asked once for the secrets: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`, `ANTHROPIC_API_KEY` and the optional `TURN_*` values. `BASE_URL` is filled in automatically from Render's public URL.
 
