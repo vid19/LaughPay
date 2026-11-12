@@ -1,5 +1,11 @@
 import 'dotenv/config';
 
+// Trim every setting: values pasted into hosting dashboards often carry a stray
+// space or newline, which PayPal rejects as "Client Authentication failed".
+for (const [k, v] of Object.entries(process.env)) {
+  if (typeof v === 'string' && v !== v.trim()) process.env[k] = v.trim();
+}
+
 const port = Number(process.env.PORT || 3000);
 
 export const config = {
