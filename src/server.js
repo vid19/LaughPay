@@ -23,6 +23,7 @@ app.use(express.json({ limit: '1mb' })); // laugh events carry one small JPEG sn
 app.use('/auth', authRoutes);
 app.use('/api', apiRoutes);
 
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.get('/', page('index'));
 app.get('/creator/:id', page('creator'));
 app.get('/c/:id', page('join'));

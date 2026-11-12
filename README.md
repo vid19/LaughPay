@@ -48,6 +48,16 @@ Money safety rules enforced on the server:
 - Webhooks are signature-verified with PayPal and de-duplicated by event ID. Payout status is also polled, so the app works even when webhooks are not set up.
 - The client secret, payouts and refunds stay server-side.
 
+## Deploy to Render
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/vid19/laughpay)
+
+The repo includes a `render.yaml` Blueprint. Render installs dependencies (which also downloads the two on-device models), starts the server and checks `/healthz`. You are asked once for the secrets: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`, `ANTHROPIC_API_KEY` and the optional `TURN_*` values. `BASE_URL` is filled in automatically from Render's public URL.
+
+After the first deploy, add `<your Render URL>/auth/paypal/callback` as a Return URL for Log in with PayPal, and a sandbox webhook pointing at `<your Render URL>/api/webhooks/events`.
+
+On Render's free plan the service sleeps after a period without traffic (the first request takes up to a minute to wake it), and local data resets on each restart or deploy. That is fine for a demo; a paid instance with a persistent disk keeps challenge history.
+
 ## Quick start (no PayPal account needed)
 
 Requires Node.js 18.17 or newer.
