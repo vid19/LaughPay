@@ -20,10 +20,10 @@ const locks = new Set();
 
 /**
  * Pays the caller who is live right now. Every check runs on the server, and
- * every win becomes a judge event first. In v1 the source is "manual" (the
- * creator's Winner button); the AI judge will create the same event in v2.
+ * every win becomes a judge event first. The source is "manual" for the
+ * creator's Winner button and "laugh_ai" when the AI referee raised the win.
  */
-export async function payWinner(challengeId, { reason, source = 'manual', evidence = null } = {}) {
+export async function payWinner(challengeId, { reason, source = 'manual', evidence = null, expectedViewerId = null } = {}) {
   if (locks.has(challengeId)) throw new HttpError(409, 'A payout for this challenge is already in progress');
   locks.add(challengeId);
   try {
@@ -32,6 +32,9 @@ export async function payWinner(challengeId, { reason, source = 'manual', eviden
 
     const entry = currentEntry(c);
     if (!entry) throw new HttpError(409, 'No caller is live right now');
+    if (expectedViewerId && entry.viewerId !== expectedViewerId) {
+      throw new HttpError(409, 'The caller changed before this win was confirmed');
+    }
     const viewer = db.byId('viewers', entry.viewerId);
 
     if (payoutsFor(c.id).some((p) => p.viewerId === viewer.id && countsAsWin(p))) {

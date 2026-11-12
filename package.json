@@ -11,12 +11,16 @@
     "seed": "node scripts/seed.js",
     "reset": "node scripts/reset.js",
     "build:css": "tailwindcss -c tailwind.config.cjs -i src/tailwind.input.css -o public/tailwind.css --minify",
-    "check-payouts": "node scripts/check-payouts.js"
+    "check-payouts": "node scripts/check-payouts.js",
+    "setup:models": "node scripts/fetch-models.js",
+    "postinstall": "node scripts/fetch-models.js"
   },
   "engines": {
     "node": ">=18.17"
   },
   "dependencies": {
+    "@mediapipe/tasks-audio": "1.2.2",
+    "@mediapipe/tasks-vision": "1.2.2",
     "dotenv": "^16.4.5",
     "express": "^5.1.0"
   },

@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { config } from '../config.js';
 import { HttpError } from '../errors.js';
 import { fmt } from '../money.js';
+import { laughView } from './laughView.js';
 
 // Payout states that mean the money did NOT reach the winner.
 const FAILED_PAYOUT = new Set(['failed', 'returned', 'blocked']);
@@ -56,6 +57,22 @@ export function joinQueue(c, viewer) {
   return db.insert('queue', { challengeId: c.id, viewerId: viewer.id, position, status: 'waiting', joinedAt: new Date().toISOString() });
 }
 
+function aiEvidence(ev) {
+  const laugh = ev?.evidence?.laughEventId ? db.byId('laughEvents', ev.evidence.laughEventId) : null;
+  if (!laugh) return null;
+  const v = laughView(laugh);
+  return {
+    ruling: v.ruling,
+    verdict: v.verdict,
+    judgedBy: v.judgedBy,
+    peak: v.peak,
+    heldMs: v.durationMs,
+    simulated: v.simulated,
+    decidedBy: laugh.decidedBy || null,
+    snapshotUrl: laugh.hasSnapshot ? `/api/laughs/${laugh.id}/snapshot.jpg` : null,
+  };
+}
+
 function publicPayout(p) {
   const ev = db.byId('judgeEvents', p.judgeEventId);
   return {
@@ -67,6 +84,7 @@ function publicPayout(p) {
     reason: ev?.reason || '',
     at: ev?.at || p.createdAt,
     transactionRef: p.transactionId ? `…${p.transactionId.slice(-6)}` : null,
+    ai: aiEvidence(ev),
   };
 }
 
@@ -91,6 +109,7 @@ export function publicView(c, viewer = null) {
     me = {
       name: viewer.displayName,
       entryStatus: entry?.status || null,
+      entryId: entry?.id || null,
       ahead: entry?.status === 'waiting' ? waiting.filter((q) => q.position < entry.position).length : null,
       win: myPayout ? publicPayout(myPayout) : null,
     };
@@ -123,6 +142,15 @@ export function creatorView(c) {
   return {
     ...publicView(c),
     liveAlreadyWon: Boolean(live && payoutsFor(c.id).some((p) => p.viewerId === live.viewerId && countsAsWin(p))),
+    liveEntry: live ? { id: live.id, startedAt: live.startedAt } : null,
+    laugh: live
+      ? laughView(
+          db
+            .filter('laughEvents', (e) => e.queueEntryId === live.id && e.status !== 'expired')
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+            .pop() || null,
+        )
+      : null,
     totalPool: fmt(c.totalCents),
     balances: Object.fromEntries(Object.entries(balances(c)).map(([k, v]) => [k, fmt(v)])),
     paypal: {

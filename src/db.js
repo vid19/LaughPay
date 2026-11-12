@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import { config } from './config.js';
 
 const file = path.resolve(config.dataFile);
-const EMPTY = { challenges: [], viewers: [], queue: [], judgeEvents: [], payouts: [], webhookLog: [] };
+const EMPTY = { challenges: [], viewers: [], queue: [], judgeEvents: [], payouts: [], webhookLog: [], laughEvents: [] };
 
 function load() {
   try {

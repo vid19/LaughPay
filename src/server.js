@@ -10,6 +10,7 @@ import { startPayoutPoller } from './services/payouts.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pub = path.join(here, '..', 'public');
+const nm = path.join(here, '..', 'node_modules', '@mediapipe');
 const page = (name) => (_req, res) => res.sendFile(path.join(pub, `${name}.html`));
 
 const app = express();
@@ -18,7 +19,7 @@ app.set('trust proxy', true); // behind ngrok / Render
 
 // Webhooks need the raw body, so they mount before the JSON parser.
 app.use('/api/webhooks', webhookRoutes);
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '1mb' })); // laugh events carry one small JPEG snapshot
 app.use('/auth', authRoutes);
 app.use('/api', apiRoutes);
 
@@ -27,6 +28,9 @@ app.get('/creator/:id', page('creator'));
 app.get('/c/:id', page('join'));
 app.get('/c/:id/results', page('results'));
 app.get('/overlay/:id', page('overlay'));
+// MediaPipe runtimes are served from node_modules so nothing loads from a CDN during a live stream.
+app.use('/vendor/tasks-vision', express.static(path.join(nm, 'tasks-vision'), { maxAge: '1d' }));
+app.use('/vendor/tasks-audio', express.static(path.join(nm, 'tasks-audio'), { maxAge: '1d' }));
 app.use(express.static(pub));
 
 app.use((req, res) => {

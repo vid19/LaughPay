@@ -26,7 +26,7 @@
     <section class="card">
       <div class="scroll-x"><table class="list" id="results"></table></div>
     </section>
-    <p class="muted text-xs mt-4">Every win is logged with when it happened, who judged it and the PayPal payout status. Winner names are shortened; emails are never shown.</p>
+    <p class="muted text-xs mt-4">Every win is logged with when it happened, who judged it, the AI referee's evidence and the PayPal payout status. Winner names are shortened; emails are never shown.</p>
   </main>
 
   <script type="module">
@@ -47,8 +47,8 @@
             <tr>
               <td class="mono text-xs">${clock(r.at)}</td>
               <td class="font-semibold">${esc(r.name)}</td>
-              <td>${r.source === 'manual' ? 'Creator' : esc(r.source)}</td>
-              <td class="muted">${esc(r.reason)}</td>
+              <td>${r.ai ? `<div class="font-semibold">AI referee</div><div class="muted text-xs">${esc(r.ai.judgedBy || '')}${r.ai.decidedBy === 'auto' ? ' · auto-paid' : ' · creator confirmed'}${r.ai.simulated ? ' · simulated' : ''}</div>` : 'Creator'}</td>
+              <td class="muted"><div class="flex items-center gap-3">${r.ai?.snapshotUrl ? `<img src="${esc(r.ai.snapshotUrl)}" alt="" width="72" style="border-radius:8px">` : ''}<div>${esc(r.reason)}${r.ai ? `<div class="mono text-xs mt-1">peak ${Number(r.ai.peak).toFixed(2)} · held ${(r.ai.heldMs / 1000).toFixed(1)}s</div>` : ''}</div></div></td>
               <td class="mono">${money(r.amount)}</td>
               <td>${badge(r.status)}</td>
               <td class="mono text-xs muted">${esc(r.transactionRef || '–')}</td>
